@@ -154,6 +154,15 @@
             padding: 5px 10px;
             border-radius: 15px;
             font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .word-item img {
+            width: 20px;
+            height: 20px;
+            object-fit: cover;
+            border-radius: 3px;
         }
         .hidden {
             display: none;
@@ -161,6 +170,28 @@
         .action-buttons {
             display: flex;
             gap: 10px;
+        }
+        .word-image-preview {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 10px 0;
+            display: none;
+        }
+        .word-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .word-entry input {
+            flex: 1;
+            margin: 0;
+        }
+        .word-entries-container {
+            margin-bottom: 15px;
+        }
+        .add-word-btn {
+            margin-bottom: 15px;
         }
         @media (max-width: 768px) {
             body {
@@ -175,6 +206,13 @@
             }
             .tab-buttons {
                 flex-wrap: wrap;
+            }
+            .word-entry {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .word-entry input {
+                width: 100%;
             }
         }
     </style>
@@ -201,6 +239,7 @@
                 <div class="score">Score: <span id="scoreDisplay">0</span>/<span id="totalWords">0</span></div>
                 
                 <div id="jumbledWord"></div>
+                <div id="imageContainer" style="text-align: center; margin: 20px 0;"></div>
                 
                 <div>
                     <input type="text" id="guessInput" placeholder="Your guess..." autocomplete="off">
@@ -223,7 +262,12 @@
         <div id="add" class="tab-content">
             <h2>Create New Word Set</h2>
             <input type="text" id="newSetName" placeholder="Set name (e.g., 'Months', 'Animals')">
-            <textarea id="newSetWords" placeholder="Enter words separated by commas or new lines"></textarea>
+            
+            <div class="word-entries-container" id="wordEntriesContainer">
+                <!-- Word entries will be added here -->
+            </div>
+            
+            <button class="add-word-btn" onclick="addWordEntry()">+ Add Another Word</button>
             <button onclick="saveNewWordSet()">Save Word Set</button>
         </div>
     </div>
@@ -234,13 +278,32 @@
             const defaultSets = {
                 months: {
                     name: "Months of the Year",
-                    words: ["January", "February", "March", "April", "May", "June", 
-                            "July", "August", "September", "October", "November", "December"]
+                    words: [
+                        {text: "January", image: null},
+                        {text: "February", image: null},
+                        {text: "March", image: null},
+                        {text: "April", image: null},
+                        {text: "May", image: null},
+                        {text: "June", image: null},
+                        {text: "July", image: null},
+                        {text: "August", image: null},
+                        {text: "September", image: null},
+                        {text: "October", image: null},
+                        {text: "November", image: null},
+                        {text: "December", image: null}
+                    ]
                 },
                 days: {
                     name: "Days of the Week",
-                    words: ["Monday", "Tuesday", "Wednesday", "Thursday", 
-                           "Friday", "Saturday", "Sunday"]
+                    words: [
+                        {text: "Monday", image: null},
+                        {text: "Tuesday", image: null},
+                        {text: "Wednesday", image: null},
+                        {text: "Thursday", image: null},
+                        {text: "Friday", image: null},
+                        {text: "Saturday", image: null},
+                        {text: "Sunday", image: null}
+                    ]
                 }
             };
             localStorage.setItem('wordSets', JSON.stringify(defaultSets));
@@ -260,6 +323,7 @@
         const gameScreen = document.getElementById('gameScreen');
         const categoryTitle = document.getElementById('categoryTitle');
         const jumbledWord = document.getElementById('jumbledWord');
+        const imageContainer = document.getElementById('imageContainer');
         const guessInput = document.getElementById('guessInput');
         const feedback = document.getElementById('feedback');
         const scoreDisplay = document.getElementById('scoreDisplay');
@@ -267,11 +331,12 @@
         const wordSetList = document.getElementById('wordSetList');
         const manageWordSets = document.getElementById('manageWordSets');
         const newSetName = document.getElementById('newSetName');
-        const newSetWords = document.getElementById('newSetWords');
+        const wordEntriesContainer = document.getElementById('wordEntriesContainer');
         
         // Helper function to jumble a word
         function jumbleWord(word) {
-            const letters = word.split('');
+            // Remove spaces for jumbling but keep them in the original word
+            const letters = word.replace(/\s/g, '').split('');
             for (let i = letters.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [letters[i], letters[j]] = [letters[j], letters[i]];
@@ -298,6 +363,18 @@
                 loadWordSets();
             } else if (tabName === 'manage') {
                 loadManageView();
+            } else if (tabName === 'add') {
+                // Reset the form when opening the add tab
+                newSetName.value = '';
+                wordEntriesContainer.innerHTML = '';
+                addWordEntry(); // Add one empty word entry by default
+                
+                // Reset the save button to its original state
+                const saveButton = document.querySelector('#add button:last-child');
+                saveButton.textContent = "Save Word Set";
+                saveButton.onclick = function() {
+                    saveNewWordSet();
+                };
             }
         }
         
@@ -316,7 +393,12 @@
                     <h3>${set.name}</h3>
                     <p>${wordCount} word${wordCount !== 1 ? 's' : ''}</p>
                     <div class="word-list">
-                        ${set.words.slice(0, 5).map(word => `<span class="word-item">${word}</span>`).join('')}
+                        ${set.words.slice(0, 5).map(word => `
+                            <span class="word-item">
+                                ${word.image ? `<img src="${word.image}" alt="${word.text}">` : ''}
+                                ${word.text}
+                            </span>
+                        `).join('')}
                         ${wordCount > 5 ? '<span class="word-item">...</span>' : ''}
                     </div>
                     <button onclick="startGame('${setId}')">Play This Set</button>
@@ -346,11 +428,55 @@
                     </h3>
                     <p>${wordCount} word${wordCount !== 1 ? 's' : ''}</p>
                     <div class="word-list">
-                        ${set.words.map(word => `<span class="word-item">${word}</span>`).join('')}
+                        ${set.words.map(word => `
+                            <span class="word-item">
+                                ${word.image ? `<img src="${word.image}" alt="${word.text}">` : ''}
+                                ${word.text}
+                            </span>
+                        `).join('')}
                     </div>
                 `;
                 manageWordSets.appendChild(setElement);
             }
+        }
+        
+        // Add a new word entry field
+        function addWordEntry(word = '', image = null) {
+            const wordEntry = document.createElement('div');
+            wordEntry.className = 'word-entry';
+            
+            const entryId = 'wordEntry_' + Date.now();
+            
+            wordEntry.innerHTML = `
+                <input type="text" class="word-text" placeholder="Word or phrase" value="${word || ''}">
+                <input type="file" class="word-image" accept="image/*" style="display: none;">
+                <button type="button" class="secondary upload-image-btn" onclick="document.getElementById('${entryId}').click()">Upload Image</button>
+                ${image ? `<img src="${image}" class="word-image-preview" style="display: block;">` : '<img class="word-image-preview">'}
+                <button type="button" class="danger" onclick="this.parentElement.remove()">Remove</button>
+                <input type="file" id="${entryId}" class="word-image" accept="image/*" style="display: none;" onchange="handleImageUpload(this)">
+            `;
+            
+            wordEntriesContainer.appendChild(wordEntry);
+        }
+        
+        // Handle image upload for a word
+        function handleImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            if (!file.type.match('image.*')) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const wordEntry = input.closest('.word-entry');
+                const preview = wordEntry.querySelector('.word-image-preview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
         }
         
         // Start game with selected word set
@@ -394,12 +520,25 @@
                     <p>Final score: ${currentGame.score}/${currentGame.words.length}</p>
                 `;
                 jumbledWord.textContent = "";
+                imageContainer.innerHTML = "";
                 guessInput.disabled = true;
                 return;
             }
             
             const currentWord = currentGame.words[currentGame.currentWordIndex];
-            jumbledWord.textContent = jumbleWord(currentWord);
+            jumbledWord.textContent = jumbleWord(currentWord.text);
+            
+            // Show image if available
+            imageContainer.innerHTML = '';
+            if (currentWord.image) {
+                const img = document.createElement('img');
+                img.src = currentWord.image;
+                img.alt = currentWord.text;
+                img.style.maxHeight = '200px';
+                img.style.maxWidth = '100%';
+                imageContainer.appendChild(img);
+            }
+            
             guessInput.value = "";
             feedback.textContent = "";
         }
@@ -409,14 +548,14 @@
             const currentWord = currentGame.words[currentGame.currentWordIndex];
             const guess = guessInput.value.trim();
             
-            if (guess.toLowerCase() === currentWord.toLowerCase()) {
+            if (guess.toLowerCase() === currentWord.text.toLowerCase()) {
                 currentGame.score++;
                 scoreDisplay.textContent = currentGame.score;
                 feedback.innerHTML = `<p class="correct">Correct! Well done!</p>`;
             } else {
                 feedback.innerHTML = `
                     <p class="incorrect">Sorry, that's incorrect.</p>
-                    <p>The correct word was: ${currentWord}</p>
+                    <p>The correct answer was: ${currentWord.text}</p>
                 `;
             }
             
@@ -435,25 +574,33 @@
         // Save new word set
         function saveNewWordSet() {
             const name = newSetName.value.trim();
-            const wordsText = newSetWords.value.trim();
             
             if (!name) {
                 alert("Please enter a name for your word set");
                 return;
             }
             
-            if (!wordsText) {
-                alert("Please enter some words");
-                return;
+            // Collect all word entries
+            const wordEntries = Array.from(document.querySelectorAll('.word-entry'));
+            const words = [];
+            
+            for (const entry of wordEntries) {
+                const text = entry.querySelector('.word-text').value.trim();
+                const imageInput = entry.querySelector('.word-image');
+                const preview = entry.querySelector('.word-image-preview');
+                
+                if (!text) continue; // Skip empty word entries
+                
+                const wordData = {
+                    text: text,
+                    image: preview.src.includes('data:image') ? preview.src : null
+                };
+                
+                words.push(wordData);
             }
             
-            // Process words (split by commas or new lines)
-            const words = wordsText.split(/[,|\n]/)
-                .map(word => word.trim())
-                .filter(word => word.length > 0);
-            
             if (words.length === 0) {
-                alert("No valid words found. Please enter words separated by commas or new lines.");
+                alert("Please add at least one word to your set");
                 return;
             }
             
@@ -469,7 +616,8 @@
             
             // Clear form
             newSetName.value = "";
-            newSetWords.value = "";
+            wordEntriesContainer.innerHTML = "";
+            addWordEntry(); // Add one empty word entry
             
             // Show success and switch to manage tab
             alert("Word set saved successfully!");
@@ -481,12 +629,17 @@
             const wordSets = JSON.parse(localStorage.getItem('wordSets'));
             const set = wordSets[setId];
             
-            // Fill the add form with existing data
+            // Fill the form with existing data
             newSetName.value = set.name;
-            newSetWords.value = set.words.join(', ');
+            wordEntriesContainer.innerHTML = '';
+            
+            // Add word entries for each word in the set
+            set.words.forEach(word => {
+                addWordEntry(word.text, word.image);
+            });
             
             // Change button to update
-            const saveButton = document.querySelector('#add button');
+            const saveButton = document.querySelector('#add button:last-child');
             saveButton.textContent = "Update Word Set";
             saveButton.onclick = function() {
                 updateWordSet(setId);
@@ -499,25 +652,32 @@
         // Update word set
         function updateWordSet(setId) {
             const name = newSetName.value.trim();
-            const wordsText = newSetWords.value.trim();
             
             if (!name) {
                 alert("Please enter a name for your word set");
                 return;
             }
             
-            if (!wordsText) {
-                alert("Please enter some words");
-                return;
+            // Collect all word entries
+            const wordEntries = Array.from(document.querySelectorAll('.word-entry'));
+            const words = [];
+            
+            for (const entry of wordEntries) {
+                const text = entry.querySelector('.word-text').value.trim();
+                const preview = entry.querySelector('.word-image-preview');
+                
+                if (!text) continue; // Skip empty word entries
+                
+                const wordData = {
+                    text: text,
+                    image: preview.src.includes('data:image') ? preview.src : null
+                };
+                
+                words.push(wordData);
             }
             
-            // Process words (split by commas or new lines)
-            const words = wordsText.split(/[,|\n]/)
-                .map(word => word.trim())
-                .filter(word => word.length > 0);
-            
             if (words.length === 0) {
-                alert("No valid words found. Please enter words separated by commas or new lines.");
+                alert("Please add at least one word to your set");
                 return;
             }
             
@@ -532,9 +692,10 @@
             
             // Clear form and reset button
             newSetName.value = "";
-            newSetWords.value = "";
+            wordEntriesContainer.innerHTML = "";
+            addWordEntry(); // Add one empty word entry
             
-            const saveButton = document.querySelector('#add button');
+            const saveButton = document.querySelector('#add button:last-child');
             saveButton.textContent = "Save Word Set";
             saveButton.onclick = function() {
                 saveNewWordSet();
@@ -567,6 +728,7 @@
         
         // Initialize the page
         loadWordSets();
+        addWordEntry(); // Add one empty word entry by default
     </script>
 </body>
 </html>
