@@ -193,6 +193,9 @@
         .add-word-btn {
             margin-bottom: 15px;
         }
+        .edit-mode {
+            background-color: #fff3cd;
+        }
         @media (max-width: 768px) {
             body {
                 padding: 10px;
@@ -258,9 +261,9 @@
             <div id="manageWordSets"></div>
         </div>
         
-        <!-- Add New Set Tab -->
+        <!-- Add/Edit Set Tab -->
         <div id="add" class="tab-content">
-            <h2>Create New Word Set</h2>
+            <h2 id="addEditTitle">Create New Word Set</h2>
             <input type="text" id="newSetName" placeholder="Set name (e.g., 'Months', 'Animals')">
             
             <div class="word-entries-container" id="wordEntriesContainer">
@@ -268,7 +271,8 @@
             </div>
             
             <button class="add-word-btn" onclick="addWordEntry()">+ Add Another Word</button>
-            <button onclick="saveNewWordSet()">Save Word Set</button>
+            <button id="saveSetBtn" onclick="saveNewWordSet()">Save Word Set</button>
+            <button id="cancelEditBtn" class="secondary hidden" onclick="cancelEdit()">Cancel Edit</button>
         </div>
     </div>
     
@@ -318,6 +322,9 @@
             setId: ""
         };
         
+        // Editing state
+        let editingSetId = null;
+        
         // DOM elements
         const menuScreen = document.getElementById('menuScreen');
         const gameScreen = document.getElementById('gameScreen');
@@ -332,10 +339,12 @@
         const manageWordSets = document.getElementById('manageWordSets');
         const newSetName = document.getElementById('newSetName');
         const wordEntriesContainer = document.getElementById('wordEntriesContainer');
+        const addEditTitle = document.getElementById('addEditTitle');
+        const saveSetBtn = document.getElementById('saveSetBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
         
         // Helper function to jumble a word
         function jumbleWord(word) {
-            // Remove spaces for jumbling but keep them in the original word
             const letters = word.replace(/\s/g, '').split('');
             for (let i = letters.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -364,18 +373,24 @@
             } else if (tabName === 'manage') {
                 loadManageView();
             } else if (tabName === 'add') {
-                // Reset the form when opening the add tab
-                newSetName.value = '';
-                wordEntriesContainer.innerHTML = '';
-                addWordEntry(); // Add one empty word entry by default
-                
-                // Reset the save button to its original state
-                const saveButton = document.querySelector('#add button:last-child');
-                saveButton.textContent = "Save Word Set";
-                saveButton.onclick = function() {
-                    saveNewWordSet();
-                };
+                if (!editingSetId) {
+                    // Reset the form when opening the add tab for new set
+                    resetAddEditForm();
+                }
             }
+        }
+        
+        // Reset add/edit form
+        function resetAddEditForm() {
+            newSetName.value = '';
+            wordEntriesContainer.innerHTML = '';
+            addWordEntry(); // Add one empty word entry by default
+            addEditTitle.textContent = "Create New Word Set";
+            saveSetBtn.textContent = "Save Word Set";
+            saveSetBtn.onclick = saveNewWordSet;
+            cancelEditBtn.classList.add('hidden');
+            document.getElementById('add').classList.remove('edit-mode');
+            editingSetId = null;
         }
         
         // Load word sets for playing
@@ -422,8 +437,8 @@
                     <h3>
                         ${set.name}
                         <div class="action-buttons">
-                            <button onclick="editWordSet('${setId}')" class="secondary">Edit</button>
-                            <button onclick="deleteWordSet('${setId}')" class="danger">Delete</button>
+                            <button class="secondary" onclick="editWordSet('${setId}')">Edit</button>
+                            <button class="danger" onclick="deleteWordSet('${setId}')">Delete</button>
                         </div>
                     </h3>
                     <p>${wordCount} word${wordCount !== 1 ? 's' : ''}</p>
@@ -586,7 +601,6 @@
             
             for (const entry of wordEntries) {
                 const text = entry.querySelector('.word-text').value.trim();
-                const imageInput = entry.querySelector('.word-image');
                 const preview = entry.querySelector('.word-image-preview');
                 
                 if (!text) continue; // Skip empty word entries
@@ -605,22 +619,29 @@
             }
             
             const wordSets = JSON.parse(localStorage.getItem('wordSets'));
-            const setId = 'set' + Date.now(); // Create unique ID
             
-            wordSets[setId] = {
-                name: name,
-                words: words
-            };
+            if (editingSetId) {
+                // Update existing set
+                wordSets[editingSetId] = {
+                    name: name,
+                    words: words
+                };
+            } else {
+                // Create new set
+                const setId = 'set' + Date.now(); // Create unique ID
+                wordSets[setId] = {
+                    name: name,
+                    words: words
+                };
+            }
             
             localStorage.setItem('wordSets', JSON.stringify(wordSets));
             
-            // Clear form
-            newSetName.value = "";
-            wordEntriesContainer.innerHTML = "";
-            addWordEntry(); // Add one empty word entry
+            // Reset form and show success
+            resetAddEditForm();
+            alert(`Word set ${editingSetId ? 'updated' : 'saved'} successfully!`);
             
-            // Show success and switch to manage tab
-            alert("Word set saved successfully!");
+            // Switch to manage tab
             openTab('manage');
         }
         
@@ -628,6 +649,9 @@
         function editWordSet(setId) {
             const wordSets = JSON.parse(localStorage.getItem('wordSets'));
             const set = wordSets[setId];
+            
+            // Set editing state
+            editingSetId = setId;
             
             // Fill the form with existing data
             newSetName.value = set.name;
@@ -638,71 +662,19 @@
                 addWordEntry(word.text, word.image);
             });
             
-            // Change button to update
-            const saveButton = document.querySelector('#add button:last-child');
-            saveButton.textContent = "Update Word Set";
-            saveButton.onclick = function() {
-                updateWordSet(setId);
-            };
+            // Update UI for edit mode
+            addEditTitle.textContent = "Edit Word Set";
+            saveSetBtn.textContent = "Update Word Set";
+            cancelEditBtn.classList.remove('hidden');
+            document.getElementById('add').classList.add('edit-mode');
             
-            // Switch to add tab (which we're now using for editing)
+            // Switch to add/edit tab
             openTab('add');
         }
         
-        // Update word set
-        function updateWordSet(setId) {
-            const name = newSetName.value.trim();
-            
-            if (!name) {
-                alert("Please enter a name for your word set");
-                return;
-            }
-            
-            // Collect all word entries
-            const wordEntries = Array.from(document.querySelectorAll('.word-entry'));
-            const words = [];
-            
-            for (const entry of wordEntries) {
-                const text = entry.querySelector('.word-text').value.trim();
-                const preview = entry.querySelector('.word-image-preview');
-                
-                if (!text) continue; // Skip empty word entries
-                
-                const wordData = {
-                    text: text,
-                    image: preview.src.includes('data:image') ? preview.src : null
-                };
-                
-                words.push(wordData);
-            }
-            
-            if (words.length === 0) {
-                alert("Please add at least one word to your set");
-                return;
-            }
-            
-            const wordSets = JSON.parse(localStorage.getItem('wordSets'));
-            
-            wordSets[setId] = {
-                name: name,
-                words: words
-            };
-            
-            localStorage.setItem('wordSets', JSON.stringify(wordSets));
-            
-            // Clear form and reset button
-            newSetName.value = "";
-            wordEntriesContainer.innerHTML = "";
-            addWordEntry(); // Add one empty word entry
-            
-            const saveButton = document.querySelector('#add button:last-child');
-            saveButton.textContent = "Save Word Set";
-            saveButton.onclick = function() {
-                saveNewWordSet();
-            };
-            
-            // Show success and switch to manage tab
-            alert("Word set updated successfully!");
+        // Cancel edit mode
+        function cancelEdit() {
+            resetAddEditForm();
             openTab('manage');
         }
         
