@@ -308,6 +308,14 @@
                         {text: "Saturday", image: null},
                         {text: "Sunday", image: null}
                     ]
+                },
+                phrases: {
+                    name: "Common Phrases",
+                    words: [
+                        {text: "Good morning", image: null},
+                        {text: "Thank you", image: null},
+                        {text: "Happy birthday", image: null}
+                    ]
                 }
             };
             localStorage.setItem('wordSets', JSON.stringify(defaultSets));
@@ -343,14 +351,23 @@
         const saveSetBtn = document.getElementById('saveSetBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         
-        // Helper function to jumble a word
-        function jumbleWord(word) {
-            const letters = word.replace(/\s/g, '').split('');
-            for (let i = letters.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [letters[i], letters[j]] = [letters[j], letters[i]];
-            }
-            return letters.join('');
+        // Helper function to jumble a word or phrase
+        function jumbleWord(phrase) {
+            // Split the phrase into words
+            const words = phrase.split(' ');
+            
+            // Jumble each word individually
+            const jumbledWords = words.map(word => {
+                const letters = word.split('');
+                for (let i = letters.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [letters[i], letters[j]] = [letters[j], letters[i]];
+                }
+                return letters.join('');
+            });
+            
+            // Join the jumbled words with spaces
+            return jumbledWords.join(' ');
         }
         
         // Tab navigation
